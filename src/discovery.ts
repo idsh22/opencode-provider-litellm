@@ -212,7 +212,10 @@ export async function discoverModels(
  * Builds the OpenCode V2 provider entry for the LiteLLM proxy.
  *
  * Uses the built-in openai-compatible provider package; the plugin
- * contributes the connection settings (baseURL + current API key).
+ * contributes the connection settings (baseURL + current API key). The
+ * openai-compatible driver appends /chat/completions to the baseURL, so
+ * point it at the proxy's /v1 prefix (LITELLM_URL stays the proxy root —
+ * discovery calls <root>/v1/model/info).
  */
 export function toProviderInfo(
   providerId: string,
@@ -220,12 +223,13 @@ export function toProviderInfo(
   apiKey: string,
 ): Provider.Info {
   const id = Provider.ID.make(providerId)
+  const root = url.replace(/\/+$/, '')
   return {
     ...Provider.Info.empty(id),
     name: providerId,
     activation: 'enabled',
     package: '@opencode/ai/providers/openai-compatible',
-    settings: { baseURL: url, apiKey },
+    settings: { baseURL: /\/v1$/.test(root) ? root : `${root}/v1`, apiKey },
   }
 }
 

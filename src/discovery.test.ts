@@ -190,9 +190,19 @@ describe('toProviderInfo', () => {
     expect(info.activation).toBe('enabled')
     expect(info.package).toBe('@opencode/ai/providers/openai-compatible')
     expect(info.settings).toEqual({
-      baseURL: 'https://litellm.example.com',
+      baseURL: 'https://litellm.example.com/v1',
       apiKey: 'sk-test-key',
     })
+  })
+
+  it('appends /v1 for a proxy root (the driver appends /chat/completions)', () => {
+    const info = toProviderInfo('litellm', 'http://10.5.30.197:4000/', 'k')
+    expect(info.settings?.baseURL).toBe('http://10.5.30.197:4000/v1')
+  })
+
+  it('does not double-append /v1 when the URL already ends with it', () => {
+    const info = toProviderInfo('litellm', 'https://litellm.example.com/v1', 'k')
+    expect(info.settings?.baseURL).toBe('https://litellm.example.com/v1')
   })
 })
 
