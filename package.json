@@ -31,7 +31,8 @@
     "opencode": ">=2.0.0"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.27"
+    "@opencode/plugin": "2.0.27",
+    "@opencode/schema": "2.0.27"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
