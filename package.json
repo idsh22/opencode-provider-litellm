@@ -25,20 +25,20 @@
   "author": "Daniel Cherubini",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/idsh22/opencode-provider-litellm.git"
+    "url": "git+https://github.com/danielcherubini/opencode-provider-litellm.git"
   },
   "engines": {
     "opencode": ">=2.0.0"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.27",
-    "@opencode/schema": "2.0.27"
+    "@opencode/plugin": "2.0.32",
+    "@opencode/schema": "2.0.32"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
     "@types/node": "^22.0.0",
-    "vitest": "^3.0.0",
     "@vitest/coverage-v8": "^3.0.0",
-    "esbuild": "^0.27.0"
+    "esbuild": "^0.27.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }
