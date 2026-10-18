@@ -1,6 +1,7 @@
 import type { Plugin } from '@opencode/plugin'
 import { resolvePluginConfig, getProviderId } from './utils.js'
 import { discoverModels, toProviderInfo, toModelInfos } from './discovery.js'
+import { createMcpToolDefinitions, type McpToolDefinition } from './mcp-tools.js'
 import { getGcloudToken } from './gcloud-token.js'
 import { loadModelCache, saveModelCache } from './model-cache.js'
 import type { DiscoveredModel } from './types.js'
@@ -66,6 +67,74 @@ export async function setup(ctx: Plugin.Context): Promise<void> {
   } catch (error: unknown) {
     console.warn(`[opencode-provider-litellm] Model discovery failed: ${error}`)
   }
+
+  // Discover MCP tools on the proxy. Failures are non-fatal: the plugin
+  // works without them.
+  let mcpToolDefinitions: McpToolDefinition[] = []
+  try {
+    mcpToolDefinitions = await createMcpToolDefinitions(pluginConfig, await getToken())
+  } catch (e: unknown) {
+    console.warn(`[opencode-provider-litellm] MCP tool discovery failed: ${e}`)
+  }
+
+  const toolDefinitions = mcpToolDefinitions
+  await ctx.tool.transform((editor) => {
+    for (const tool of toolDefinitions) {
+      editor.add({
+        name: tool.name,
+        description: tool.description,
+        input: tool.input,
+        execute: (input, context) => tool.execute(input, context),
+      })
+    }
+  })
+
+  // Inject the session ID into LiteLLM requests so all messages from the
+  // same opencode session are grouped under one conversation in LiteLLM
+  // logs. With gcloud token auth, also inject a fresh OAuth token on
+  // every request (the token in the provider settings goes stale).
+  await ctx.session.hook(
+    'model.request',
+    async (event) => {
+      if (isGcloudAuth) {
+        const token = await getGcloudToken()
+        if (token) {
+          event.headers['Authorization'] = `Bearer ${token}`
+        }
+      }
+      if (event.sessionID) {
+        event.headers['X-Litellm-Session-ID'] = event.sessionID
+      }
+    },
+    { providerID: providerId },
+  )
+
+  // Normalize `thinking` param to Vertex AI Claude format.
+  // Vertex AI Claude only accepts type in {"adaptive", "disabled", "enabled"}.
+  // Opencode may send string levels like "medium"/"low"/"high" or dict with
+  // non-standard type values — map them to "adaptive" (Claude decides budget)
+  // or "disabled" (no thinking).
+  // Also ensures thinking is always a dict (LiteLLM's is_thinking_enabled
+  // assumes dict shape — see BerriAI/litellm#28576, PR #28861).
+  await ctx.session.hook(
+    'context',
+    (event) => {
+      const thinking = event.options.thinking
+      if (typeof thinking === 'string') {
+        const type = (thinking === 'off' || thinking === 'disabled')
+          ? 'disabled'
+          : 'adaptive'
+        event.options.thinking = { type }
+      } else if (typeof thinking === 'object' && thinking !== null && !Array.isArray(thinking)) {
+        const thinkingObj = thinking as Record<string, unknown>
+        const type = thinkingObj.type as string | undefined
+        if (typeof type === 'string' && !['adaptive', 'disabled', 'enabled'].includes(type)) {
+          thinkingObj.type = 'adaptive'
+        }
+      }
+    },
+    { providerID: providerId },
+  )
 
   console.log(
     `[opencode-provider-litellm] loaded (provider: ${providerId}, auth: ${isGcloudAuth ? 'gcloud-token' : 'api-key'})`,
